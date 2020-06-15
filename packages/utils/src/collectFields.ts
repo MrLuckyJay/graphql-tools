@@ -125,3 +125,18 @@ function getFieldEntryKey(node: FieldNode): string {
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   return node.alias ? node.alias.value : node.name.value;
 }
+
+export function collectSubFields(
+  exeContext: GraphQLExecutionContext,
+  returnType: GraphQLObjectType,
+  fieldNodes: ReadonlyArray<FieldNode>
+): Record<string, Array<FieldNode>> {
+  let subFieldNodes = Object.create(null);
+  const visitedFragmentNames = Object.create(null);
+  for (const node of fieldNodes) {
+    if (node.selectionSet) {
+      subFieldNodes = collectFields(exeContext, returnType, node.selectionSet, subFieldNodes, visitedFragmentNames);
+    }
+  }
+  return subFieldNodes;
+}

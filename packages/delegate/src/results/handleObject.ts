@@ -8,7 +8,7 @@ import {
   GraphQLResolveInfo,
 } from 'graphql';
 
-import { collectFields, GraphQLExecutionContext, setErrors, slicedError } from '@graphql-tools/utils';
+import { collectFields, GraphQLExecutionContext, setErrors, slicedError, collectSubFields } from '@graphql-tools/utils';
 import { setObjectSubschema, isSubschemaConfig } from '../Subschema';
 import { mergeFields } from '../mergeFields';
 import { MergedTypeInfo, SubschemaConfig, StitchingInfo } from '../types';
@@ -66,10 +66,7 @@ export function handleObject(
   );
 }
 
-function collectSubFields(info: GraphQLResolveInfo, typeName: string): Record<string, Array<FieldNode>> {
-  let subFieldNodes: Record<string, Array<FieldNode>> = Object.create(null);
-  const visitedFragmentNames = Object.create(null);
-
+function collectSubFieldsFromInfo(info: GraphQLResolveInfo, typeName: string): Record<string, Array<FieldNode>> {
   const type = info.schema.getType(typeName) as GraphQLObjectType;
   const partialExecutionContext = ({
     schema: info.schema,
@@ -77,18 +74,10 @@ function collectSubFields(info: GraphQLResolveInfo, typeName: string): Record<st
     fragments: info.fragments,
   } as unknown) as GraphQLExecutionContext;
 
-  info.fieldNodes.forEach(fieldNode => {
-    subFieldNodes = collectFields(
-      partialExecutionContext,
-      type,
-      fieldNode.selectionSet,
-      subFieldNodes,
-      visitedFragmentNames
-    );
-  });
+  let subFieldNodes = collectSubFields(partialExecutionContext, type, info.fieldNodes);
 
   const selectionSetsByField = (info.schema.extensions.stitchingInfo as StitchingInfo).selectionSetsByField;
-
+  const visitedFragmentNames = Object.create(null);
   Object.keys(subFieldNodes).forEach(responseName => {
     const fieldName = subFieldNodes[responseName][0].name.value;
     if (selectionSetsByField[typeName] && selectionSetsByField[typeName][fieldName]) {
@@ -114,7 +103,7 @@ function getFieldsNotInSubschema(
   const typeMap = isSubschemaConfig(subschema) ? mergedTypeInfo.typeMaps.get(subschema) : subschema.getTypeMap();
   const fields = (typeMap[typeName] as GraphQLObjectType).getFields();
 
-  const subFieldNodes = collectSubFields(info, typeName);
+  const subFieldNodes = collectSubFieldsFromInfo(info, typeName);
 
   let fieldsNotInSchema: Array<FieldNode> = [];
   Object.keys(subFieldNodes).forEach(responseName => {
